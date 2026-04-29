@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -25,18 +27,41 @@ jobs:
       - name: Install Copilot CLI
         run: npm install -g @github/copilot
 
+      - name: Generate PR diff
+        run: |
+          git fetch origin main
+          git diff origin/main...HEAD > pr-diff.txt
+
       - name: Generate code quality review
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: |
-          copilot -p "Review the code changes in this pull request for code quality only. Focus on readability, maintainability, naming, structure, duplication, unnecessary complexity, and best practices. Output only clear markdown for my team to understand." > copilot-review.md
+          copilot -p "You are reviewing a pull request.
+
+          Do not run commands.
+          Do not fetch GitHub data.
+          Use only the diff provided below.
+
+          Review the PR diff for code quality only.
+          Focus on readability, maintainability, naming, structure, duplication, unnecessary complexity, and best practices.
+
+          Output only clear markdown for my team to understand.
+
+          PR diff:
+          $(cat pr-diff.txt)" > copilot-review.md
 
       - name: Update PR description
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require("fs");
-            const review = fs.readFileSync("copilot-review.md", "utf8");
+
+            const review = fs.readFileSync("copilot-review.md", "utf8").trim();
+
+            if (!review) {
+              core.setFailed("Copilot review is empty");
+              return;
+            }
 
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
@@ -44,13 +69,27 @@ jobs:
               pull_number: context.issue.number,
             });
 
-            const newBody = `${pr.body || ""}
+            const startMarker = "<!-- copilot-review-start -->";
+            const endMarker = "<!-- copilot-review-end -->";
 
-            ---
+            const reviewSection = `${startMarker}
 
             ## 🤖 Copilot Code Quality Review
 
-            ${review}`;
+            ${review}
+
+            ${endMarker}`;
+
+            const currentBody = pr.body || "";
+            const markerRegex = new RegExp(`${startMarker}[\\s\\S]*?${endMarker}`);
+
+            const newBody = markerRegex.test(currentBody)
+              ? currentBody.replace(markerRegex, reviewSection)
+              : `${currentBody}
+
+            ---
+
+            ${reviewSection}`;
 
             await github.rest.pulls.update({
               owner: context.repo.owner,
