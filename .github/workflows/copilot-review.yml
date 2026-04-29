@@ -36,7 +36,18 @@ jobs:
         with:
           script: |
             const fs = require("fs");
-            const review = fs.readFileSync("copilot-review.md", "utf8");
+
+            if (!fs.existsSync("copilot-review.md")) {
+              core.setFailed("copilot-review.md was not generated");
+              return;
+            }
+
+            const review = fs.readFileSync("copilot-review.md", "utf8").trim();
+
+            if (!review) {
+              core.setFailed("Copilot review is empty");
+              return;
+            }
 
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
@@ -44,13 +55,27 @@ jobs:
               pull_number: context.issue.number,
             });
 
-            const newBody = `${pr.body || ""}
+            const startMarker = "<!-- copilot-review-start -->";
+            const endMarker = "<!-- copilot-review-end -->";
 
-            ---
+            const reviewSection = `${startMarker}
 
             ## 🤖 Copilot Code Quality Review
 
-            ${review}`;
+            ${review}
+
+            ${endMarker}`;
+
+            const currentBody = pr.body || "";
+            const markerRegex = new RegExp(`${startMarker}[\\s\\S]*?${endMarker}`);
+
+            const newBody = markerRegex.test(currentBody)
+              ? currentBody.replace(markerRegex, reviewSection)
+              : `${currentBody}
+
+            ---
+
+            ${reviewSection}`;
 
             await github.rest.pulls.update({
               owner: context.repo.owner,
