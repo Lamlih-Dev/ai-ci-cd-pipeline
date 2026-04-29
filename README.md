@@ -21,7 +21,9 @@ After validation and approval, changes are merged into the main branch and deplo
 - ✅ Code quality & best practices enforcement
 - ✅ Type checking
 - ✅ Build validation
-- 🔄 Security checks (dependencies & code scanning) *(in progress)*
+- ✅ Security checks (dependency audit & CodeQL static analysis)
+- ✅ Automated security enforcement (PR blocked on high vulnerabilities)
+- ✅ Dependency monitoring & update PRs with Dependabot
 - 🔄 AI-assisted pull request review report *(in progress)*
 - 🚀 Production deployment via Netlify
 
