@@ -1,11 +1,12 @@
-name: Copilot PR Review
+name: Copilot Code Quality Review
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
-  copilot-review:
+  copilot-code-quality-review:
     runs-on: ubuntu-latest
 
     permissions:
@@ -13,10 +14,10 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -24,66 +25,9 @@ jobs:
       - name: Install Copilot CLI
         run: npm install -g @github/copilot
 
-      - name: Generate PR diff
-        run: |
-          git fetch origin main
-          git diff origin/main...HEAD > diff.txt
-
-      - name: Generate Copilot review
+      - name: Generate code quality review
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          copilot -p "
-          You are a senior software engineer reviewing a pull request.
-
-          Analyze the following changes.
-
-          Provide a clear and concise markdown report:
-
-          ## 🤖 Copilot PR Review
-
-          ### Summary
-          Explain what changed
-
-          ### Code Quality
-          Improvements and best practices
-
-          ### Risks
-          Potential bugs or edge cases
-
-          ### Test Coverage
-          What tests should be added
-
-          ### Recommendation
-          Merge or request changes
-
-          Keep it simple and understandable for the team.
-          " < diff.txt > review.md
-
-      - name: Update PR description
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const review = fs.readFileSync('review.md', 'utf8');
-
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number
-            });
-
-            const newBody = `
-${pr.body || ""}
-
----
-
-${review}
-`;
-
-            await github.rest.pulls.update({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-              body: newBody
-            });
+          copilot -p "Review the code changes in this pull request for code quality only. Focus on readability, maintainability, naming, structure, duplication, unnecessary complexity, and best practices. Add the result to this PR description in clear markdown for my team to understand."
