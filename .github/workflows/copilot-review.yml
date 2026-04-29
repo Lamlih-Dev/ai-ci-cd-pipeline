@@ -1,0 +1,89 @@
+name: Copilot PR Review
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  copilot-review:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+
+      - name: Generate PR diff
+        run: |
+          git fetch origin main
+          git diff origin/main...HEAD > diff.txt
+
+      - name: Generate Copilot review
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          copilot -p "
+          You are a senior software engineer reviewing a pull request.
+
+          Analyze the following changes.
+
+          Provide a clear and concise markdown report:
+
+          ## 🤖 Copilot PR Review
+
+          ### Summary
+          Explain what changed
+
+          ### Code Quality
+          Improvements and best practices
+
+          ### Risks
+          Potential bugs or edge cases
+
+          ### Test Coverage
+          What tests should be added
+
+          ### Recommendation
+          Merge or request changes
+
+          Keep it simple and understandable for the team.
+          " < diff.txt > review.md
+
+      - name: Update PR description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const review = fs.readFileSync('review.md', 'utf8');
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            const newBody = `
+${pr.body || ""}
+
+---
+
+${review}
+`;
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              body: newBody
+            });
