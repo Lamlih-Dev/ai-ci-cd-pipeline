@@ -28,6 +28,33 @@ jobs:
       - name: Generate code quality review
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          copilot -p "Review the code changes in this pull request for code quality only. Focus on readability, maintainability, naming, structure, duplication, unnecessary complexity, and best practices. Add the result to this PR description in clear markdown for my team to understand."
+          copilot -p "Review the code changes in this pull request for code quality only. Focus on readability, maintainability, naming, structure, duplication, unnecessary complexity, and best practices. Output only clear markdown for my team to understand." > copilot-review.md
+
+      - name: Update PR description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const review = fs.readFileSync("copilot-review.md", "utf8");
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const newBody = `${pr.body || ""}
+
+            ---
+
+            ## 🤖 Copilot Code Quality Review
+
+            ${review}`;
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              body: newBody,
+            });
