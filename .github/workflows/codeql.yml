@@ -9,7 +9,7 @@ on:
 permissions:
   security-events: write
   contents: read
-  
+
 jobs:
   analyze:
     name: CodeQL Analysis
@@ -23,6 +23,7 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: javascript
+          queries: security-extended,security-and-quality
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
